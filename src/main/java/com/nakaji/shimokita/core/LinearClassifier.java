@@ -30,8 +30,14 @@ public class LinearClassifier<L> implements Classifier<L> {
 		for (L key : keys) {
 			double score = biases.get(key);
 			Map<Object, Double> ws = weights.get(key);
-			for (Entry<Object, Double> e : feature.getElements().entrySet()) {
-				score += e.getValue() * ws.get(e.getKey());
+			if (ws != null) {
+				for (Entry<Object, Double> e : feature.getElements().entrySet()) {
+					Double w = ws.get(e.getKey());
+					if (w == null) {
+						continue;
+					}
+					score += e.getValue() * w;
+				}
 			}
 			Score<L> result = new Score<L>();
 			result.label = key;
@@ -41,7 +47,7 @@ public class LinearClassifier<L> implements Classifier<L> {
 		Collections.sort(results, new Comparator<Score<L>>() {
 			@Override
 			public int compare(Score<L> arg0, Score<L> arg1) {
-				return Double.compare(arg0.getScore(), arg1.getScore());
+				return -Double.compare(arg0.getScore(), arg1.getScore());
 			}
 		});
 		return results;
