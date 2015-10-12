@@ -26,8 +26,6 @@ public class LogisticRegression implements Trainer {
 			for (LabelFeatureVector<L> f : allFeatureVectors) {
 				update(biases, weights, f.label, f.vector, historicalGradientSquares);
 			}
-			System.out.println(biases);
-			System.out.println(weights);
 		}
 		LinearClassifier<L> result = new LinearClassifier<L>();
 		result.setBiases(biases);
@@ -37,16 +35,22 @@ public class LogisticRegression implements Trainer {
 
 	private <L> void update(Map<L, Double> biases, Map<L, Map<Object, Double>> weights,
 			L rightLabel, FeatureVector f, Map<L, Map<Object, Double>> historicalGradientSquares) {
-		for (Entry<L, Double> b : biases.entrySet()) {
-			L label = b.getKey();
-			Double bias = b.getValue();
+		Set<L> labels = biases.keySet();
+		Map<L, Double> logits = new HashMap<L, Double>();
+		double denominator = 0;
+		for (L label : labels) {
+			double logit = Math.exp(biases.get(label));
 			Map<Object, Double> weight = weights.get(label);
-			double y = bias;
 			for (Entry<Object, Double> e : f.getElements().entrySet()) {
 				Object feature = e.getKey();
-				y += e.getValue() * weight.get(feature);
+				logit += Math.exp(e.getValue() * weight.get(feature));
 			}
-			System.out.println(y);
+			logits.put(label, logit);
+			denominator += logit;
+		}
+		// denominator
+		for (L label : labels) {
+			double y = logits.get(label) / denominator;
 			double magicValue = rightLabel.equals(label) ? (1 - y) : -y;
 			Map<Object, Double> gradientSquare = historicalGradientSquares.get(label);
 			if (gradientSquare == null) {
@@ -54,13 +58,16 @@ public class LogisticRegression implements Trainer {
 				historicalGradientSquares.put(label, gradientSquare);
 			}
 			updateGradientSquare("__BIAS__", gradientSquare, magicValue);
-			b.setValue(bias - initialEmpiricalParameter * magicValue
-					/ Math.sqrt(gradientSquare.get("__BIAS__")));
+			biases.put(
+					label,
+					biases.get(label) + initialEmpiricalParameter * magicValue
+							/ Math.sqrt(gradientSquare.get("__BIAS__")));
+			Map<Object, Double> weight = weights.get(label);
 			for (Entry<Object, Double> e : f.getElements().entrySet()) {
 				Object feature = e.getKey();
 				double gradient = magicValue * e.getValue();
 				updateGradientSquare(feature, gradientSquare, magicValue * e.getValue());
-				weight.put(feature, weight.get(feature) - initialEmpiricalParameter * gradient
+				weight.put(feature, weight.get(feature) + initialEmpiricalParameter * gradient
 						/ Math.sqrt(gradientSquare.get(feature)));
 			}
 		}

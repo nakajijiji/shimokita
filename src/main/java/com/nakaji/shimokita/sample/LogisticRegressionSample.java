@@ -5,7 +5,7 @@ import com.nakaji.shimokita.data.SampleFeatureVectors;
 
 public class LogisticRegressionSample {
 	public static void main(String[] args) {
-		LogisticRegression regression = new LogisticRegression(1.0);
+		LogisticRegression regression = new LogisticRegression(0.1);
 		regression.train(SampleFeatureVectors.generate());
 	}
 }
