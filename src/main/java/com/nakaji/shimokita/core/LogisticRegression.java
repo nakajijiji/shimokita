@@ -10,6 +10,7 @@ import java.util.Set;
 
 public class LogisticRegression implements Trainer {
 	private double initialEmpiricalParameter;
+	private double l2 = 1.0;
 
 	public LogisticRegression(double initialEmpiricalParameter) {
 		this.initialEmpiricalParameter = initialEmpiricalParameter;
@@ -26,6 +27,8 @@ public class LogisticRegression implements Trainer {
 			for (LabelFeatureVector<L> f : allFeatureVectors) {
 				update(biases, weights, f.label, f.vector, historicalGradientSquares);
 			}
+			System.out.println(biases);
+			System.out.println(weights);
 		}
 		LinearClassifier<L> result = new LinearClassifier<L>();
 		result.setBiases(biases);
@@ -48,10 +51,10 @@ public class LogisticRegression implements Trainer {
 			logits.put(label, logit);
 			denominator += logit;
 		}
-		// denominator
 		for (L label : labels) {
 			double y = logits.get(label) / denominator;
 			double magicValue = rightLabel.equals(label) ? (1 - y) : -y;
+			double gradient = magicValue - l2 * biases.get(label);
 			Map<Object, Double> gradientSquare = historicalGradientSquares.get(label);
 			if (gradientSquare == null) {
 				gradientSquare = new HashMap<Object, Double>();
@@ -65,7 +68,7 @@ public class LogisticRegression implements Trainer {
 			Map<Object, Double> weight = weights.get(label);
 			for (Entry<Object, Double> e : f.getElements().entrySet()) {
 				Object feature = e.getKey();
-				double gradient = magicValue * e.getValue();
+				gradient = magicValue * e.getValue() - l2 * weight.get(feature);
 				updateGradientSquare(feature, gradientSquare, magicValue * e.getValue());
 				weight.put(feature, weight.get(feature) + initialEmpiricalParameter * gradient
 						/ Math.sqrt(gradientSquare.get(feature)));
