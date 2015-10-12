@@ -19,53 +19,49 @@ public class LogisticRegression implements Trainer {
 	@Override
 	public <L> Classifier<L> train(Map<L, List<FeatureVector>> featureMap) {
 		List<L> labels = labels(featureMap);
-		Map<L, Double> biases = initializeBias(labels);
 		List<LabelFeatureVector<L>> allFeatureVectors = extractAllFeatureVectors(featureMap);
 		Map<L, Map<Object, Double>> weights = initializeWeight(allFeatureVectors, labels);
 		Map<L, Map<Object, Double>> historicalGradientSquares = new HashMap<L, Map<Object, Double>>();
 		for (int i = 0; i < 100; i++) {
 			for (LabelFeatureVector<L> f : allFeatureVectors) {
-				update(biases, weights, f.label, f.vector, historicalGradientSquares);
+				update(weights, f.label, f.vector, historicalGradientSquares);
 			}
-			System.out.println(biases);
 			System.out.println(weights);
 		}
 		LinearClassifier<L> result = new LinearClassifier<L>();
-		result.setBiases(biases);
-		result.setWeights(weights);
+		//result.setBiases(biases);
+		//result.setWeights(weights);
 		return result;
 	}
 
-	private <L> void update(Map<L, Double> biases, Map<L, Map<Object, Double>> weights,
-			L rightLabel, FeatureVector f, Map<L, Map<Object, Double>> historicalGradientSquares) {
-		Set<L> labels = biases.keySet();
-		Map<L, Double> logits = new HashMap<L, Double>();
+	private <L> void update(Map<L, Map<Object, Double>> weights, L rightLabel, FeatureVector f,
+			Map<L, Map<Object, Double>> historicalGradientSquares) {
+		Set<L> labels = weights.keySet();
+		Map<L, Double> probabilities = new HashMap<L, Double>();
 		double denominator = 0;
 		for (L label : labels) {
-			double logit = Math.exp(biases.get(label));
 			Map<Object, Double> weight = weights.get(label);
+			double probability = weight.get(Bias.class);
 			for (Entry<Object, Double> e : f.getElements().entrySet()) {
 				Object feature = e.getKey();
-				logit += Math.exp(e.getValue() * weight.get(feature));
+				probability += Math.exp(e.getValue() * weight.get(feature));
 			}
-			logits.put(label, logit);
-			denominator += logit;
+			probabilities.put(label, probability);
+			denominator += probability;
 		}
 		for (L label : labels) {
-			double y = logits.get(label) / denominator;
+			double y = probabilities.get(label) / denominator;
 			double magicValue = rightLabel.equals(label) ? (1 - y) : -y;
-			double gradient = magicValue - l2 * biases.get(label);
+			Map<Object, Double> weight = weights.get(label);
+			double gradient = magicValue - l2 * weight.get(Bias.class);
 			Map<Object, Double> gradientSquare = historicalGradientSquares.get(label);
 			if (gradientSquare == null) {
 				gradientSquare = new HashMap<Object, Double>();
 				historicalGradientSquares.put(label, gradientSquare);
 			}
-			updateGradientSquare("__BIAS__", gradientSquare, magicValue);
-			biases.put(
-					label,
-					biases.get(label) + initialEmpiricalParameter * magicValue
-							/ Math.sqrt(gradientSquare.get("__BIAS__")));
-			Map<Object, Double> weight = weights.get(label);
+			updateGradientSquare(Bias.class, gradientSquare, magicValue);
+			weight.put(Bias.class, weight.get(Bias.class) + initialEmpiricalParameter * gradient
+					/ Math.sqrt(gradientSquare.get(Bias.class)));
 			for (Entry<Object, Double> e : f.getElements().entrySet()) {
 				Object feature = e.getKey();
 				gradient = magicValue * e.getValue() - l2 * weight.get(feature);
@@ -91,14 +87,6 @@ public class LogisticRegression implements Trainer {
 
 	private <L> List<L> labels(Map<L, List<FeatureVector>> featureMap) {
 		return new ArrayList<L>(featureMap.keySet());
-	}
-
-	private <L> Map<L, Double> initializeBias(List<L> labels) {
-		Map<L, Double> result = new HashMap<L, Double>();
-		for (L l : labels) {
-			result.put(l, 0.0);
-		}
-		return result;
 	}
 
 	private <L> List<LabelFeatureVector<L>> extractAllFeatureVectors(
@@ -129,6 +117,7 @@ public class LogisticRegression implements Trainer {
 			for (Object o : allElements) {
 				result.put(o, 0.0);
 			}
+			result.put(Bias.class, 0.0);
 			results.put(label, result);
 		}
 		return results;
@@ -137,5 +126,9 @@ public class LogisticRegression implements Trainer {
 	private static class LabelFeatureVector<L> {
 		private FeatureVector vector;
 		private L label;
+	}
+
+	private static class Bias {
+
 	}
 }
