@@ -1,4 +1,4 @@
-package com.nakaji.shimokita.core;
+package com.nakaji.shimokita.extention;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -7,6 +7,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+
+import com.nakaji.shimokita.core.Classifier;
+import com.nakaji.shimokita.core.FeatureVector;
+import com.nakaji.shimokita.core.LinearClassifier;
+import com.nakaji.shimokita.core.Trainer;
 
 public class LogisticRegression implements Trainer {
 	private double initialEmpiricalParameter = 1.0;

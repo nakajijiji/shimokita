@@ -1,7 +1,7 @@
 package com.nakaji.shimokita.sample;
 
-import com.nakaji.shimokita.core.LogisticRegression;
 import com.nakaji.shimokita.data.SampleFeatureVectors;
+import com.nakaji.shimokita.extention.LogisticRegression;
 
 public class LogisticRegressionSample {
 	public static void main(String[] args) {
