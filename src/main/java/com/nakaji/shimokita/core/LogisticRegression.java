@@ -9,32 +9,75 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 public class LogisticRegression implements Trainer {
-	private double initialEmpiricalParameter;
-	private double l2 = 3.0;
+	private double initialEmpiricalParameter = 1.0;
+	private double l2 = 0.0;
+	private double epsilon = 0.01;
+	private int maxLoop = 1000;
 
-	public LogisticRegression(double initialEmpiricalParameter) {
-		this.initialEmpiricalParameter = initialEmpiricalParameter;
+	public LogisticRegression() {
+	}
+
+	public LogisticRegression withL2(double l2) {
+		this.l2 = l2;
+		return this;
+	}
+
+	public LogisticRegression withEpsilon(double epsilon) {
+		this.epsilon = epsilon;
+		return this;
+	}
+
+	public LogisticRegression withMaxLoop(int maxLoop) {
+		this.maxLoop = maxLoop;
+		return this;
+	}
+
+	public LogisticRegression withInitialEmpiricalParameter(double parameter) {
+		this.initialEmpiricalParameter = parameter;
+		return this;
 	}
 
 	@Override
 	public <L> Classifier<L> train(Map<L, List<FeatureVector>> featureMap) {
 		List<L> labels = labels(featureMap);
 		List<LabelFeatureVector<L>> allFeatureVectors = extractAllFeatureVectors(featureMap);
-		Map<L, Map<Object, Double>> weights = initializeWeight(allFeatureVectors, labels);
+		Map<L, Map<Object, Double>> weights = initializeWeight(
+				allFeatureVectors, labels);
 		Map<L, Map<Object, Double>> historicalGradientSquares = new HashMap<L, Map<Object, Double>>();
-		for (int i = 0; i < 10; i++) {
+		double previousError = Integer.MAX_VALUE;
+		for (int i = 0; i < maxLoop; i++) {
+			double error = 0;
 			for (LabelFeatureVector<L> f : allFeatureVectors) {
-				update(weights, f.label, f.vector, historicalGradientSquares);
+				error += update(weights, f.label, f.vector,
+						historicalGradientSquares);
 			}
-			System.out.println(weights);
+			if (isConverged(previousError, error)) {
+				break;
+			}
 		}
+		return finalize(weights);
+	}
+
+	private boolean isConverged(double previousError, double currentError) {
+		return Math.abs(previousError - currentError) < epsilon;
+	}
+
+	private <L> LinearClassifier<L> finalize(Map<L, Map<Object, Double>> weights) {
 		LinearClassifier<L> result = new LinearClassifier<L>();
-		// result.setBiases(biases);
-		// result.setWeights(weights);
+		Map<L, Double> biases = new HashMap<L, Double>();
+		for (Entry<L, Map<Object, Double>> e : weights.entrySet()) {
+			L label = e.getKey();
+			Map<Object, Double> finalWeights = e.getValue();
+			biases.put(label, finalWeights.get(Bias.class));
+			finalWeights.remove(Bias.class);
+		}
+		result.setBiases(biases);
+		result.setWeights(weights);
 		return result;
 	}
 
-	private <L> void update(Map<L, Map<Object, Double>> weights, L rightLabel, FeatureVector f,
+	private <L> double update(Map<L, Map<Object, Double>> weights,
+			L rightLabel, FeatureVector f,
 			Map<L, Map<Object, Double>> historicalGradientSquares) {
 		Set<L> labels = weights.keySet();
 		Map<L, Double> probabilities = new HashMap<L, Double>();
@@ -53,25 +96,32 @@ public class LogisticRegression implements Trainer {
 			probabilities.put(label, probability);
 			denominator += probability;
 		}
-		for (L label : labels) {
+		double error = 0;
+		for (final L label : labels) {
 			double y = probabilities.get(label) / denominator;
-			final double magicValue = rightLabel.equals(label) ? (1 - y) : -y;
+			final double labelError = rightLabel.equals(label) ? (1 - y) : -y;
+			error += Math.abs(labelError);
 			final Map<Object, Double> weight = weights.get(label);
-			final Map<Object, Double> gradientSquare = historicalGradientSquares.containsKey(label) ? historicalGradientSquares
-					.get(label) : new HashMap<Object, Double>();
+			final Map<Object, Double> gradientSquare = historicalGradientSquares
+					.containsKey(label) ? historicalGradientSquares.get(label)
+					: new HashMap<Object, Double>();
 			historicalGradientSquares.put(label, gradientSquare);
 			forEachElementAndBias(f, new Procedure() {
 				@Override
 				protected void doProceed(Entry<Object, Double> e) {
 					Object feature = e.getKey();
-					double gradient = magicValue * e.getValue() - l2 * weight.get(feature);
-					System.out.println(feature + ":" + gradient);
+					double gradient = labelError * e.getValue() - l2
+							* weight.get(feature);
 					updateGradientSquare(feature, gradientSquare, gradient);
-					weight.put(feature, weight.get(feature) + initialEmpiricalParameter * gradient
-							/ Math.sqrt(gradientSquare.get(feature)));
+					weight.put(
+							feature,
+							weight.get(feature) + initialEmpiricalParameter
+									* gradient
+									/ Math.sqrt(gradientSquare.get(feature)));
 				}
 			});
 		}
+		return error;
 	}
 
 	private void forEachElementAndBias(FeatureVector f, Procedure procedure) {
@@ -97,15 +147,15 @@ public class LogisticRegression implements Trainer {
 		}
 	}
 
-	private <L> double updateGradientSquare(Object key, Map<Object, Double> gradientSquares,
-			Double gradient) {
+	private <L> double updateGradientSquare(Object key,
+			Map<Object, Double> gradientSquares, Double gradient) {
 		Double previous = gradientSquares.get(key);
 		if (previous == null) {
 			double result = 0.01 + gradient * gradient;
 			gradientSquares.put(key, result);
 			return gradient * gradient;
 		}
-		double result = (previous + gradient) * (previous + gradient);
+		double result = previous + gradient * gradient;
 		gradientSquares.put(key, result);
 		return result;
 	}
